@@ -13,7 +13,7 @@ To use, put something similar to this in `~/.config/nvim/init.vim`
 let srcpath = "/home/user/srcdir"
 if stridx(getcwd(), srcpath) >= 0
     " for menu background color in opengrok plugin
-    hi Pmenu ctermbg=lightblue guibg=lightblue
+    " hi Pmenu ctermbg=lightblue guibg=lightblue
 
     " preset server and path
     autocmd VimEnter * OGrokSetServer   http://localhost:8080/source
@@ -24,7 +24,7 @@ if stridx(getcwd(), srcpath) >= 0
     nmap <C-]>  :OGrok def  <C-R>=expand("<cword>")<CR><CR> 0
     nmap <C-\>f :OGrok file <C-R>=expand("<cfile>")<CR><CR> 0
 
-    " tag navication is handled internally by the plugin, doesn't use the normal
+    " tag navigation is handled internally by the plugin, doesn't use the normal
     " tag stack
     nmap <C-t>  :OGrokJumpBack<CR>
 endif
