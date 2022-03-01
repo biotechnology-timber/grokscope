@@ -123,6 +123,7 @@ class OGrokPlugin(object):
         self.tmp_saved_locations = None
         # the buffer that the user was originally in before we made a new one
         self.tmp_work_buffer= None
+        self.tmp_work_window = None
         self.tmp_col = None
         self.tmp_row = None
 
@@ -217,50 +218,55 @@ class OGrokPlugin(object):
 
         # save stuff off
         self.tmp_work_buffer = self.nvim.request('nvim_win_get_buf', 0)
+        self.tmp_work_window = self.nvim.request('nvim_tabpage_get_win', 0)
         self.tmp_row, self.tmp_col = self.nvim.request('nvim_win_get_cursor', 0)
 
         # TODO if there's only one result, go there
 
+        # created a buf... need to clean up on err
         new_buf = self.nvim.request('nvim_create_buf', False, True)
+        try:
 
-        status = '~~ {} matches. ~~ [q to quit] ~~ [<return> to select] ~~'.format(len(locations))
-        self.nvim.request('nvim_buf_set_lines', new_buf, 0, 1, True, [status])
+            status = '~~ {} matches. ~~ [q to quit] ~~ [<return> to select] ~~'.format(len(locations))
+            self.nvim.request('nvim_buf_set_lines', new_buf, 0, 1, True, [status])
 
-        for i,l in enumerate(locations):
-            new_buf.append('{idx} {path}:{line_num}'.format(idx=i,
-                path=l.path, line_num=l.line_num))
-            if query_type != 1:
-                new_buf.append('  {content}'.format(content=l.content.strip()))
+            for i,l in enumerate(locations):
+                new_buf.append('{idx} {path}:{line_num}'.format(idx=i,
+                    path=l.path, line_num=l.line_num))
+                if query_type != 1:
+                    new_buf.append('  {content}'.format(content=l.content.strip()))
 
-        closing_keys= ['<Esc>', '<Leader>', 'q']
-        key_map_opts = {'silent': True, 'nowait': True, 'noremap': True}
-        for key in closing_keys:
-            self.nvim.request('nvim_buf_set_keymap', new_buf, 'n', key, ':close<CR>', key_map_opts)
+            closing_keys= ['<Esc>', '<Leader>', 'q']
+            key_map_opts = {'silent': True, 'nowait': True, 'noremap': True}
+            for key in closing_keys:
+                self.nvim.request('nvim_buf_set_keymap', new_buf, 'n', key, ':close<CR>', key_map_opts)
 
 
-        cmd = ':OGrokGoto<CR>'
-        self.nvim.request('nvim_buf_set_keymap', new_buf, 'n', '<CR>', cmd, key_map_opts)
-        
+            cmd = ':OGrokGoto<CR>'
+            self.nvim.request('nvim_buf_set_keymap', new_buf, 'n', '<CR>', cmd, key_map_opts)
+            
 
-        # set this in vimrc
-        # self.nvim.command("hi Pmenu ctermbg=blue guibg=blue")
+            # set this in vimrc
+            # self.nvim.command("hi Pmenu ctermbg=blue guibg=blue")
 
-        cur_win = self.nvim.request('nvim_get_current_win')
-        options = {
-            'relative': 'win',
-            'width'   : cur_win.width,
-            'height'  : cur_win.height//4,
-            'row'     : cur_win.width*3//4,
-            'col'     : 0,
-            'anchor'  : 'NW',
-            'style'   : 'minimal',
-            'border'  : 'rounded',
-        }
-        new_win = self.nvim.request('nvim_open_win', new_buf, True, options)
-        self.nvim.command("setlocal cursorline")
-        self.nvim.command("setlocal nowrap")
-        self.nvim.command("0")
-
+            cur_win = self.nvim.request('nvim_get_current_win')
+            options = {
+                'relative': 'win',
+                'width'   : cur_win.width,
+                'height'  : cur_win.height//4,
+                'row'     : cur_win.width*3//4,
+                'col'     : 0,
+                'anchor'  : 'NW',
+                'style'   : 'minimal',
+                'border'  : 'rounded',
+            }
+            new_win = self.nvim.request('nvim_open_win', new_buf, True, options)
+            self.nvim.command("setlocal cursorline")
+            self.nvim.command("setlocal nowrap")
+            self.nvim.command("0")
+        except Exception as e:
+            self.nvim.command(":close")
+            raise e
 
 
 
@@ -316,8 +322,13 @@ class OGrokPlugin(object):
         # get next location
         loc = self.tmp_saved_locations[x]
 
+        # close menu window+buffer
         self.nvim.command(':close')
 
+        # go to the saved off window
+        self.nvim.request('nvim_set_current_win', self.tmp_work_window)
+
+        # move that buffer to the location we want
         cmd = ':e +{line} {base}{rest}'.format(
             base=self.path,
             rest=loc.path,
@@ -327,6 +338,7 @@ class OGrokPlugin(object):
 
         self.tmp_saved_locations = None
         self.tmp_work_buffer = None
+        self.tmp_work_window = None
         self.tmp_col = None
         self.tmp_row = None
         return
