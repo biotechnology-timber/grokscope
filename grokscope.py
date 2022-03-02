@@ -217,8 +217,8 @@ class OGrokPlugin(object):
             return
 
         # save stuff off
-        self.tmp_work_buffer = self.nvim.request('nvim_win_get_buf', 0)
-        self.tmp_work_window = self.nvim.request('nvim_tabpage_get_win', 0)
+        self.tmp_work_buffer = self.nvim.request('nvim_get_current_buf')
+        self.tmp_work_window = self.nvim.request('nvim_get_current_win')
         self.tmp_row, self.tmp_col = self.nvim.request('nvim_win_get_cursor', 0)
 
         # TODO if there's only one result, go there
@@ -236,10 +236,14 @@ class OGrokPlugin(object):
                 if query_type != 1:
                     new_buf.append('  {content}'.format(content=l.content.strip()))
 
-            closing_keys= ['<Esc>', '<Leader>', 'q']
+            closing_keys= ['<Esc>', '<Leader>', 'q', '<BS>']
             key_map_opts = {'silent': True, 'nowait': True, 'noremap': True}
+            # close this window+buffer. Go back to correct window
+            close_cmd = ':close | '
+            close_cmd += 'call nvim_set_current_win({})<CR>'.format(self.tmp_work_window.handle)
             for key in closing_keys:
-                self.nvim.request('nvim_buf_set_keymap', new_buf, 'n', key, ':close<CR>', key_map_opts)
+                self.nvim.request('nvim_buf_set_keymap', new_buf,
+                        'n', key, close_cmd, key_map_opts)
 
 
             cmd = ':OGrokGoto<CR>'
