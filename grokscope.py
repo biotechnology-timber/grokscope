@@ -74,7 +74,7 @@ class OpenGrokAPI:
             count = 1000
         reqfmt = self.addr + 'search?' + key + '={symbol}&maxresults={count}&start={idx}'
         req = reqfmt.format(symbol=s, count=count, idx=0)
-        rsp = self.session.get(req, timeout=1)
+        rsp = self.session.get(req, timeout=5)
         if not rsp.ok:
             raise Exception("Request '{}' failed ({}).".format(req,rsp))
         d = rsp.json()
@@ -172,7 +172,7 @@ class OGrokPlugin(object):
         else:
             self.nvim.out_write('OpenGrok server is not set.\n')
 
-    @pynvim.command('OGrok', nargs='*', range='')
+    @pynvim.command('OGrok', nargs='*', range='', sync=True)
     def OGrok(self, args, range):
 
         self.tmp_saved_locations = None
@@ -234,7 +234,8 @@ class OGrokPlugin(object):
                 new_buf.append('{idx} {path}:{line_num}'.format(idx=i,
                     path=l.path, line_num=l.line_num))
                 if query_type != 1:
-                    new_buf.append('  {content}'.format(content=l.content.strip()))
+                    new_buf.append(' {content}'.format(
+                        content=l.content.strip()).replace('<b>', "").replace('</b>', ""))
 
             closing_keys= ['<Esc>', '<Leader>', 'q', '<BS>']
             key_map_opts = {'silent': True, 'nowait': True, 'noremap': True}
@@ -268,6 +269,14 @@ class OGrokPlugin(object):
             self.nvim.command("setlocal cursorline")
             self.nvim.command("setlocal nowrap")
             self.nvim.command("0")
+            # TODO, get the \< \> to work...
+            to_match = '\\<{}\\>'.format(query_value)
+            if fuzzy:
+                to_match = '\\<\\w*{}\\w*\\>'.format(query_value)
+            self.nvim.command(":match Function /{}/".format(to_match))
+            # idk, + and \+ don't seem to work in this regex...
+            self.nvim.command(':call matchadd("LineNr", "^[0-9][0-9]*")')
+            self.nvim.command(':call matchadd("LineNr", "^~.*$")')
         except Exception as e:
             self.nvim.command(":close")
             raise e
@@ -332,10 +341,13 @@ class OGrokPlugin(object):
         # go to the saved off window
         self.nvim.request('nvim_set_current_win', self.tmp_work_window)
 
+        # TODO probably need to do more escaping......
+        path = '{}{}'.format(self.path, loc.path)
+        path = path.replace("$", "\\$")
+
         # move that buffer to the location we want
-        cmd = ':e +{line} {base}{rest}'.format(
-            base=self.path,
-            rest=loc.path,
+        cmd = ':e +{line} {path}'.format(
+            path=path,
             line=loc.line_num
         )
         self.nvim.command(cmd)
