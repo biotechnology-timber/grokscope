@@ -36,9 +36,10 @@ class Location:
         return ret
 
 class Mark:
-    def __init__(self, path, line_number):
+    def __init__(self, path, line_number, col):
         self.path = path
         self.line = line_number
+        self.col  = col
 
 
 class OpenGrokAPI:
@@ -330,7 +331,7 @@ class OGrokPlugin(object):
             # if we have a location to save
 
             # save cur location
-            self.marks.append(Mark(curr_fpath, self.tmp_row))
+            self.marks.append(Mark(curr_fpath, self.tmp_row, self.tmp_col))
 
         # get next location
         loc = self.tmp_saved_locations[x]
@@ -367,5 +368,7 @@ class OGrokPlugin(object):
             return
 
         m = self.marks.pop()
-        cmd = ':e +{line} {path}'.format(line=m.line, path=m.path)
+        # cursor(0, x) stays on current line and jumps to col x
+        cmd = ':e +{line} {path} | call cursor(0,{col})'.format(
+                line=m.line, path=m.path, col=m.col+1)
         self.nvim.command(cmd)
