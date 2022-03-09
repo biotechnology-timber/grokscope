@@ -71,12 +71,12 @@ if stridx(getcwd(), srcpath) >= 0
 
     " Search by symbol, definition, and file
     " similar to the setup given in :help cscope
-    nmap <C-\>s :OGrok sym  <C-R>=expand("<cword>")<CR><CR> 0 1
-    nmap <C-]>  :OGrok def  <C-R>=expand("<cword>")<CR><CR> 0 1
-    nmap <C-\>f :OGrok file <C-R>=expand("<cword>")<CR><CR> 0 1
+    nmap <C-\>s :OGrok sym  <C-R>=expand("<cword>") 0 1<CR><CR>
+    nmap <C-]>  :OGrok def  <C-R>=expand("<cword>") 0 1<CR><CR>
+    nmap <C-\>f :OGrok file <C-R>=expand("<cword>") 0 1<CR><CR>
 
     " may want <cfile> instead depending on the behavior you're looking for
-    " nmap <C-\>f :OGrok file <C-R>=expand("<cfile>")<CR><CR> 0 1
+    " nmap <C-\>f :OGrok file <C-R>=expand("<cfile>") 0 1<CR><CR>
 
     " tag navigation is handled internally by the plugin, doesn't use the normal
     " tag stack
