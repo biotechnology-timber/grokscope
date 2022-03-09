@@ -1,6 +1,7 @@
 import pynvim
 import requests
 import warnings
+import os
 
 class Location:
     def __init__(self, path, line_content, line_num):
@@ -65,7 +66,8 @@ class OpenGrokAPI:
 
 
 
-    def _search(self, key, s, count, fuzzy):
+    # TODO URL Encode stuff. stuff can have non-url path stuff in it? Or does requests handle that already..?
+    def _search(self, key, s, count, fuzzy, proj_name):
         if fuzzy:
             s = '*{}*'.format(s)
         get_all = False
@@ -73,8 +75,14 @@ class OpenGrokAPI:
             # get all, 1000 at a time
             get_all = True
             count = 1000
-        reqfmt = self.addr + 'search?' + key + '={symbol}&maxresults={count}&start={idx}'
-        req = reqfmt.format(symbol=s, count=count, idx=0)
+        req = ""
+        if proj_name:
+            reqfmt = self.addr + 'search?' + key + '={symbol}&maxresults={count}&start={idx}&projects={proj}'
+            req = reqfmt.format(symbol=s, count=count, idx=0, proj=proj_name)
+        else:
+            reqfmt = self.addr + 'search?' + key + '={symbol}&maxresults={count}&start={idx}'
+            req = reqfmt.format(symbol=s, count=count, idx=0)
+
         rsp = self.session.get(req, timeout=5)
         if not rsp.ok:
             raise Exception("Request '{}' failed ({}).".format(req,rsp))
@@ -96,18 +104,20 @@ class OpenGrokAPI:
 
             times += 1
             if times > 10:
+                # TODO replace this with normal error handling...
+                # Maybe make the pop up window just say "partial results" or something
                 warnings.warn("Server claims too many results. Returning early.")
                 break
         return ret
 
-    def search_symbol(self, s, count=-1, fuzzy=False):
-        return self._search('symbol', s, count, fuzzy)
+    def search_symbol(self, s, count=-1, fuzzy=False, proj_name=None):
+        return self._search('symbol', s, count, fuzzy, proj_name)
 
-    def search_def(self, s, count=-1, fuzzy=False):
-        return self._search('def', s, count, fuzzy)
+    def search_def(self, s, count=-1, fuzzy=False, proj_name=None):
+        return self._search('def', s, count, fuzzy, proj_name)
 
-    def search_path(self, s, count=-1, fuzzy=False):
-        return self._search('path', s, count, fuzzy)
+    def search_path(self, s, count=-1, fuzzy=False, proj_name=None):
+        return self._search('path', s, count, fuzzy, proj_name)
         
 
 
@@ -173,6 +183,36 @@ class OGrokPlugin(object):
         else:
             self.nvim.out_write('OpenGrok server is not set.\n')
 
+    @pynvim.command('OGrokGetCurrentProj', nargs='0', range='', sync=True)
+    def OGrokGetCurrentProj(self, args, range):
+        proj = self.get_current_project()
+        if proj:
+            self.nvim.out_write("OGrok: current project is '{}'.\n".format(proj))
+        else:
+            self.nvim.out_write('OGrok: no current project.\n')
+
+
+    def get_current_project(self):
+        cwd = self.nvim.command_output("echo getcwd()")
+        base = self.path
+        if base[-1] in ['\\', '/']:
+            base = base[:-1]
+
+        # XXX this obviously doesn't handle symlinks, reparse points, etc
+        #  cwd needs to be base + / + <name>, so at least two more chars
+        if base != cwd[:len(base)] or len(cwd) < len(base) + 2:
+            self.nvim.err_write('OGrok: Ignoring <filter_project> flag while not in a child of {}'.format(self.path))
+            return None
+        else:
+            # XXX doesn't handle unix filenames with \ in them.
+            proj = cwd[len(base)+1:]
+            indices = [proj.find('/'), proj.find('\\')]
+            indices = [i for i in indices if i != -1]
+            if len(indices) != 0:
+                proj = proj[:min(indices)]
+            return proj
+
+    # TODO document the API here....
     @pynvim.command('OGrok', nargs='*', range='', sync=True)
     def OGrok(self, args, range):
 
@@ -194,6 +234,13 @@ class OGrokPlugin(object):
         if len(args) == 3:
             fuzzy = "0" != args[2]
 
+        proj_name = None
+        if len(args) == 4:
+            if "0" != args[3]:
+                proj_name = self.get_current_project()
+
+
+
         if query_type in ['g', 'd', 'def',]:
             query_type = 0
         elif query_type in ['f', 'file', 'path']:
@@ -207,13 +254,15 @@ class OGrokPlugin(object):
         fn = fns[query_type]
 
         try:
-            data = fn(query_value, -1, fuzzy)
+            data = fn(query_value, -1, fuzzy, proj_name)
         except Exception as e:
             self.nvim.err_write('OGrok: {}.\n'.format(e))
             return
         locations = Location.from_ogrok_dict(data)
         self.tmp_saved_locations = locations
         if len(locations) == 0:
+            # TODO hitting this makes you go back to the beginning of the line
+            # you're on??
             self.nvim.out_write('OGrok: No results.\n')
             return
 
