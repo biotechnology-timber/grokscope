@@ -35,18 +35,18 @@ E.g., to find the definition of `my_symbol`, you could use
 OGrok def my_symbol
 ```
 
-The `OGrok` command take two optional positional flags, `fuzzy` and
+The `OGrok` command takes two optional positional flags, `fuzzy` and
 `filter_project`.
 
-Enabling the `fuzzy` flag (default false) globs around the search term. I.e
+Enabling the `fuzzy` flag (default: false) globs around the search term. I.e
 ```vim
 OGrok def my_symbol 1
 ```
 will also search for definitions matching `*my_symbol*`.
 
-The `filter_project` flag will cause the search to only return results in the
-current project. The current project name is determined based on `getcwd()` and
-the base path set by `OGrokSetBasePath`. E.g.,
+The `filter_project` flag (default: false) will cause the search to only return
+results in the current project. The current project name is determined based on
+`getcwd()` and the base path set by `OGrokSetBasePath`. E.g.,
 ```vim
 OGrok def my_symbol 0 1
 ```
