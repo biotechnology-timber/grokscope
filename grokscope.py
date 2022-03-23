@@ -130,6 +130,7 @@ class OGrokPlugin(object):
         self.api = None
         self.path = None
         self.marks = []
+        self.log = None
 
         self.tmp_saved_locations = None
         # the buffer that the user was originally in before we made a new one
@@ -152,6 +153,12 @@ class OGrokPlugin(object):
         else:
             self.nvim.out_write('OpenGrok base path is not set.\n')
 
+    @pynvim.command('OGrokSetLogFile', nargs='*', range='', sync=True)
+    def OGrokSetLogFile(self, args, range):
+        # autocmd VimEnter * OGrokSetBasePath /home/user/src
+        if len(args) < 1:
+            raise Exception("Path argument required.")
+        self.log = args[0]
 
     @pynvim.command('OGrokSetServer', nargs='*', range='', sync=True)
     def OGrokSetServer(self, args, range):
@@ -266,6 +273,10 @@ class OGrokPlugin(object):
             self.nvim.out_write('OGrok: No results.\n')
             return
 
+        if self.log:
+            with open(self.log, 'a') as f:
+                f.write("Data: {}".format(data))
+
         # save stuff off
         self.tmp_work_buffer = self.nvim.request('nvim_get_current_buf')
         self.tmp_work_window = self.nvim.request('nvim_get_current_win')
@@ -284,8 +295,13 @@ class OGrokPlugin(object):
                 new_buf.append('{idx} {path}:{line_num}'.format(idx=i,
                     path=l.path, line_num=l.line_num))
                 if query_type != 1:
-                    new_buf.append(' {content}'.format(
-                        content=l.content.strip()).replace('<b>', "").replace('</b>', ""))
+                    content = l.content.strip().replace('<b>', "")\
+                            .replace('</b>', "")\
+                            .replace('\n', 'XXXX')\
+                            .replace('\r', 'YYYY')\
+                            .replace("&gt", ">")\
+                            .replace("&lt", "<")
+                    new_buf.append(' {content}'.format(content=content))
 
             closing_keys= ['<Esc>', '<Leader>', 'q', '<BS>']
             key_map_opts = {'silent': True, 'nowait': True, 'noremap': True}
@@ -326,7 +342,7 @@ class OGrokPlugin(object):
             self.nvim.command(":match Function /{}/".format(to_match))
             # idk, + and \+ don't seem to work in this regex...
             self.nvim.command(':call matchadd("LineNr", "^[0-9][0-9]*")')
-            self.nvim.command(':call matchadd("LineNr", "^~.*$")')
+            #self.nvim.command(':call matchadd("LineNr", "^~.*$")')
         except Exception as e:
             self.nvim.command(":close")
             raise e
