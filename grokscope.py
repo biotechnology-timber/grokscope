@@ -299,8 +299,8 @@ class OGrokPlugin(object):
                             .replace('</b>', "")\
                             .replace('\n', 'XXXX')\
                             .replace('\r', 'YYYY')\
-                            .replace("&gt", ">")\
-                            .replace("&lt", "<")
+                            .replace("&gt;", ">")\
+                            .replace("&lt;", "<")
                     new_buf.append(' {content}'.format(content=content))
 
             closing_keys= ['<Esc>', '<Leader>', 'q', '<BS>']
