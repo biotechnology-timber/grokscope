@@ -201,23 +201,19 @@ class OGrokPlugin(object):
 
     def get_current_project(self):
         cwd = self.nvim.command_output("echo getcwd()")
-        base = self.path
-        if base[-1] in ['\\', '/']:
-            base = base[:-1]
+        cwd  = os.path.realpath(cwd)
 
-        # XXX this obviously doesn't handle symlinks, reparse points, etc
-        #  cwd needs to be base + / + <name>, so at least two more chars
-        if base != cwd[:len(base)] or len(cwd) < len(base) + 2:
-            self.nvim.err_write('OGrok: Ignoring <filter_project> flag while not in a child of {}'.format(self.path))
-            return None
-        else:
-            # XXX doesn't handle unix filenames with \ in them.
-            proj = cwd[len(base)+1:]
-            indices = [proj.find('/'), proj.find('\\')]
-            indices = [i for i in indices if i != -1]
-            if len(indices) != 0:
-                proj = proj[:min(indices)]
-            return proj
+        for proj in os.listdir(self.path):
+            projpath = os.path.realpath(self.path + "/" + proj)
+
+            if projpath[-1] in ['\\', '/']:
+                projpath = projpath[:-1]
+
+            if len(cwd) >= len(projpath):
+                if projpath == cwd[:len(projpath)]:
+                    return proj
+
+        return None
 
     # TODO document the API here....
     @pynvim.command('OGrok', nargs='*', range='', sync=True)
@@ -232,7 +228,7 @@ class OGrokPlugin(object):
             raise Exception("Cannot query without a base path. See OGrokSetBasePath.")
 
         if len(args) < 2:
-            raise Exception("Usage: <def|file|sym> <query> [fuzzy_flag: 0|1]")
+            raise Exception("Usage: <def|file|sym> <query> [fuzzy_flag: 0|1] [cur_proj_flag: 0|1]")
 
         query_type = args[0]
         query_value = args[1]
