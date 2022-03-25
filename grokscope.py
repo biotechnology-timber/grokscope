@@ -297,7 +297,7 @@ class OGrokPlugin(object):
                             .replace('\r', 'YYYY')\
                             .replace("&gt;", ">")\
                             .replace("&lt;", "<")
-                    new_buf.append(' {content}'.format(content=content))
+                    new_buf.append('        {content}'.format(content=content))
 
             closing_keys= ['<Esc>', '<Leader>', 'q', '<BS>']
             key_map_opts = {'silent': True, 'nowait': True, 'noremap': True}
