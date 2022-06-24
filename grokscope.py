@@ -41,6 +41,19 @@ class Mark:
         self.path = path
         self.line = line_number
         self.col  = col
+    
+    def __str__(self):
+        path = self.path
+        # XXX windows vs linux
+        if '/' in self.path:
+            path = self.path.split('/')[-1]
+        elif '\\' in self.path:
+            path = self.path.split('\\')[-1]
+            
+        if len(path) > 15:
+            path = path[-15:]
+        
+        return f'Mark({path}:{self.line}|{self.col})'
 
 
 class OpenGrokAPI:
@@ -129,7 +142,8 @@ class OGrokPlugin(object):
         self.nvim = nvim
         self.api = None
         self.path = None
-        self.marks = []
+        # map from window id to the array of Marks
+        self.marks = {}
         self.log = None
 
         self.tmp_saved_locations = None
@@ -234,7 +248,7 @@ class OGrokPlugin(object):
         query_value = args[1]
 
         fuzzy = False
-        if len(args) == 3:
+        if len(args) >= 3:
             fuzzy = "0" != args[2]
 
         proj_name = None
@@ -288,16 +302,20 @@ class OGrokPlugin(object):
             self.nvim.request('nvim_buf_set_lines', new_buf, 0, 1, True, [status])
 
             for i,l in enumerate(locations):
-                new_buf.append('{idx} {path}:{line_num}'.format(idx=i,
-                    path=l.path, line_num=l.line_num))
                 if query_type != 1:
+                    new_buf.append('{idx} {path}:{line_num}'.format(idx=i,
+                        path=l.path, line_num=l.line_num))
                     content = l.content.strip().replace('<b>', "")\
                             .replace('</b>', "")\
                             .replace('\n', 'XXXX')\
                             .replace('\r', 'YYYY')\
                             .replace("&gt;", ">")\
-                            .replace("&lt;", "<")
+                            .replace("&lt;", "<")\
+                            .replace("&amp;", "&")
                     new_buf.append('        {content}'.format(content=content))
+                    new_buff.append('')
+                else:
+                    new_buf.append('{idx} {path}'.format(idx=i, path=l.path))
 
             closing_keys= ['<Esc>', '<Leader>', 'q', '<BS>']
             key_map_opts = {'silent': True, 'nowait': True, 'noremap': True}
@@ -317,11 +335,14 @@ class OGrokPlugin(object):
             # self.nvim.command("hi Pmenu ctermbg=blue guibg=blue")
 
             cur_win = self.nvim.request('nvim_get_current_win')
+            height  = self.nvim.request('nvim_win_get_height'), cur_win)
+            width   = self.nvim.request('nvim_win_get_width',   cur_win)
+            ht = height // 4
             options = {
                 'relative': 'win',
-                'width'   : cur_win.width,
-                'height'  : cur_win.height//4,
-                'row'     : cur_win.width*3//4,
+                'width'   : width,
+                'height'  : ht,
+                'row'     : height - ht,
                 'col'     : 0,
                 'anchor'  : 'NW',
                 'style'   : 'minimal',
@@ -391,9 +412,13 @@ class OGrokPlugin(object):
         if len(curr_fpath) != 0:
             # if we have a location to save
 
-            # save cur location
-            self.marks.append(Mark(curr_fpath, self.tmp_row, self.tmp_col))
+            # save cur location in the tag stack (for the given window)
+            if win_id in self.marks:
+                self.marks[win_id].append(Mark(curr_fpath, self.tmp_row, self.tmp_col))
+            else:
+                self.marks[win_id] = [Mark(curr_fpath, self.tmp_row, self.tmp_col)]
 
+        
         # get next location
         loc = self.tmp_saved_locations[x]
 
@@ -422,14 +447,25 @@ class OGrokPlugin(object):
         return
             
 
+    @pynvim.command('OGrokDumpStack', nargs='0', range='')
+    def OGrokDumpStack(self, args, range):
+        self.nvim.out_write('OGrok: {}.\n'.format(self.marks))
+        return
+    
     @pynvim.command('OGrokJumpBack', nargs='0', range='')
     def OGrokJumpBack(self, args, range):
-        if len(self.marks) == 0:
-            self.nvim.out_write('OGrok: jump stack is empty.\n')
+        win_id = self.nvim.request('nvim_get_current_win')
+        if win_id not in self.marks:
+            self.nvim.out_write('OGrok: no jump stack for this window.\n')
             return
-
-        m = self.marks.pop()
-        # cursor(0, x) stays on current line and jumps to col x
-        cmd = ':e +{line} {path} | call cursor(0,{col})'.format(
-                line=m.line, path=m.path, col=m.col+1)
-        self.nvim.command(cmd)
+        else:
+            stack = self.marks[win_id]
+            if len(stack) == 0:
+                self.nvim.out.write('OGrok: jump stack is empty.\n')
+                return
+            
+            m = stack.pop()
+            #cursor(0,x) stays on current line and jumps to col x
+            cmd = ':e +{line} {path} | call cursor(0,{col})'.format(
+                        line=m.line, path=m.path, col=m.col+1)
+            self.nvim.command(cmd)
