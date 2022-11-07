@@ -17,6 +17,9 @@ run `:UpdateRemotePlugins`. Restart open instances of `nvim`.
 
 # Usage
 
+
+**TODO: Add annotations usage information*
+
 There are two setup commands. `OGrokSetServer` and `OGrokSetBasePath`. They tell
 the plugin where the opengrok server and corresponding local source code are
 located.
